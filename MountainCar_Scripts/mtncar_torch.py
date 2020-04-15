@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Apr 10 15:04:08 2020
-
 @author: locker
-
 Me building a MountainCar solver from scratch using PyTorch.
 """
 
@@ -16,7 +14,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 class Model(nn.Module):
-    # initializing class creates a sequential NN
     def __init__(self):
         super(Model, self).__init__()
         self.fc1 = nn.Linear(2, 64)
@@ -30,6 +27,10 @@ class Model(nn.Module):
         return x
 
 env = gym.make('MountainCar-v0')
+state = env.reset()
+model = Model()
+model(torch.from_numpy(state).float())
+
 done = False
 best_so_far = [-200]
 EPISODES = 2000
