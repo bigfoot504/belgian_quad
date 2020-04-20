@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
+import random
 
 class Model(nn.Module):
     def __init__(self):
@@ -27,14 +28,41 @@ class Model(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
+    
+# taken from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+Transition = namedtuple('Transition',
+                       ('state', 'action', 'next_state', 'reward'))
+
+# taken from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+class ReplayMemory(object):
+    
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.memory[]
+        self.poisition = 0
+        
+    def push(self, *args):
+        """Saves a transition."""
+        if len(self.memory) < self.capacity:
+            self.memory.append(None)
+        self.memory[self.position] = Transition(*args)
+        self.position = (elf.position + 1) % self.capacity
+        
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+    
+    def __len__self(self):
+        return len(self.memory)
 
 env = gym.make('MountainCar-v0')
 model = Model()
 tgt_model = model
 LEARNING_RATE = 0.001
 GAMMA = 0.99 # discount factor
+REPLAY_MEMORY = 10_000
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = optim.lr_scheduler.StepLF(optimizer, step_size=1, gamma=GAMMA)
+memory =ReplayMemory(REPLAY_MEMORY)
 
 done = False
 best_so_far = [-200]
@@ -42,11 +70,12 @@ EPISODES = 2000
 # function to decay epsilon from 1 to 0 over EPISODES horizon
 epsilon = lambda episodes : 0#(EPISODES - episodes) / EPISODES
 UPDATE_TARGET_EVERY = 5
-UPDATE_STATS_EVERY = 50
 SHOW_EVERY = 1
+BATCH_SIZE = 64
 SHOW = False
 max_pos_ls = []
-
+ep_loss_ls = []
+ep_reward_ls = []
 
 for episode in range(EPISODES):
     print(episode)
@@ -56,6 +85,8 @@ for episode in range(EPISODES):
     actions = []
     doneEp = False
     max_pos = -0.4
+    ep_loss = 0
+    ep_reward = 0
     
     while not doneEp:
         if episode % SHOW_EVERY == 0 and SHOW == True:
@@ -96,12 +127,16 @@ for episode in range(EPISODES):
         state = state_new
         if state[0] > max_pos:
             max_pos = state[0]
+        ep_loss += loss.item()
+        ep_reward += reward
         
         # if episode is done
         if doneEp:
             scheduler.step()
             
     max_pos_ls.append(max_pos)
+    ep_loss_ls.append(ep_loss)
+    ep_reward_ls.append(ep_reward)
         
     env.close()
     
