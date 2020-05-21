@@ -4,7 +4,7 @@ This script is meant to build out a Deep Q-learning algorithm to accomplish an o
 Currently re-writing this in pytorch and cleaning up old code.
 First scenario, try to make one drone fly to food.
 
-Updated 19 May 2020
+Updated 20 May 2020
 '''
 
 import numpy as np
@@ -247,6 +247,10 @@ class Blob:
     # Subtract one blob from another (get (x,y) distance)
     def __sub__(self, other):
         return (self.x - other.x, self.y - other.y)
+    
+    # Euclidean distance
+    def dist2(self, other):
+        return np.linalg.norm(self - other)
 
     # Check if two blobs on top of each other
     def __eq__(self, other):
@@ -311,14 +315,17 @@ class Blob:
     # Function returns (min, argmin) or  (max, argmax)
     def minmax_dist_action(self, other_blob, min_or_max):
         dist = []
-        self.action(0); dist.append(np.linalg.norm(self-other_blob)); self.action(1)
-        self.action(1); dist.append(np.linalg.norm(self-other_blob)); self.action(0)
-        self.action(2); dist.append(np.linalg.norm(self-other_blob)); self.action(3)
-        self.action(3); dist.append(np.linalg.norm(self-other_blob)); self.action(2)
-        self.action(4); dist.append(np.linalg.norm(self-other_blob)); self.action(5)
-        self.action(5); dist.append(np.linalg.norm(self-other_blob)); self.action(4)
-        self.action(6); dist.append(np.linalg.norm(self-other_blob)); self.action(7)
-        self.action(7); dist.append(np.linalg.norm(self-other_blob)); self.action(6)
+        false_blob = Blob(BLACK,WIDTH,HEIGHT,(8,8))
+        false_blob.x, false_blob.y = self.x, self.y
+        false_blob.action(0); dist.append(false_blob.dist2(other_blob)); false_blob.action(1)
+        false_blob.action(1); dist.append(false_blob.dist2(other_blob)); false_blob.action(0)
+        false_blob.action(2); dist.append(false_blob.dist2(other_blob)); false_blob.action(3)
+        false_blob.action(3); dist.append(false_blob.dist2(other_blob)); false_blob.action(2)
+        false_blob.action(4); dist.append(false_blob.dist2(other_blob)); false_blob.action(5)
+        false_blob.action(5); dist.append(false_blob.dist2(other_blob)); false_blob.action(4)
+        false_blob.action(6); dist.append(false_blob.dist2(other_blob)); false_blob.action(7)
+        false_blob.action(7); dist.append(false_blob.dist2(other_blob)); false_blob.action(6)
+        del false_blob
         if min_or_max == 'max':
             max_dist = np.max(dist)
             argmax_dist = np.argmax(dist)
@@ -517,44 +524,51 @@ def draw_environment(blob_list, t):
             
             # Make blue move toward green and avoid red
             if blob.color == BLUE:
-                min_dist_b2r = []; argmin_dist_b2r = []
-                max_dist_b2r = []; argmax_dist_b2r = []
-                red_blobs = blob_list[1]
-                greenblob = blob_list[2][0]
+                dists_toward_red = []; actions_toward_red = []#min_dist_b2r = []; argmin_dist_b2r = []
+                dists_away_red   = []; actions_away_red   = []#max_dist_b2r = []; argmax_dist_b2r = []
+                red_blobs  = blob_list[1]
+                green_blob = blob_list[2][0]
                 
+                '''
                 # Look at moves to get away from red0
                 #min_dist_b2r[0], argmin_dist_b2r[0] = blob.minmax_dist_action(red_blobs[0], 'min')
                 #max_dist_b2r[0], argmax_dist_b2r[0] = blob.minmax_dist_action(red_blobs[0], 'max')
                 # Look at moves to get away from red1
                 #min_dist_b2r[1], argmin_dist_b2r[1] = blob.minmax_dist_action(red_blobs[1], 'min')
                 #max_dist_b2r[1], argmax_dist_b2r[1] = blob.minmax_dist_action(red_blobs[1], 'max')
+                '''
                 
                 # Look at moves to get away from red_blobs
                 for r in red_blobs:
                     red_blob = red_blobs[r]
                     min_dist, argmin_dist = blob.minmax_dist_action(red_blob, 'min')
                     max_dist, argmax_dist = blob.minmax_dist_action(red_blob, 'max')
-                    min_dist_b2r.append(min_dist); argmin_dist_b2r.append(argmin_dist)
-                    max_dist_b2r.append(max_dist); argmax_dist_b2r.append(argmax_dist)
+                    dists_toward_red.append(min_dist); actions_toward_red.append(argmin_dist)
+                    dists_away_red.append(  max_dist); actions_away_red.append(  argmax_dist)
                 
                 # Look at moves to go toward green
-                min_dist_b2g, argmin_dist_b2g = blob.minmax_dist_action(greenblob, 'min')
-                max_dist_b2g, argmax_dist_b2g = blob.minmax_dist_action(greenblob, 'max')
+                dist_toward_green, action_toward_green = blob.minmax_dist_action(green_blob, 'min')
+                dist_away_green,   action_away_green   = blob.minmax_dist_action(green_blob, 'max')
                 
                 # Freeze game screen if terminal state (blue gets food or enemy gets blue)
-                if min_dist_b2g < 5:
+                if dist_toward_green < 1:
                     continue
-                if np.min(min_dist_b2r) < 1:
+                if np.min(dists_toward_red) < 1:
                     continue
                 
                 # Blue makes decision on where to go next
-                if np.max(max_dist_b2r) > 50:
+                if np.min(dists_away_red) > 50:
                     # go toward green if no reds nearby
-                    blob.action(argmin_dist_b2g)
+                    blob.action(action_toward_green)
                 else:
+                    #actions = list(range(8))
+                    # Remove action to step toward nearest red
+                    #actions.remove(actions_toward_red[np.argmin(dists_toward_red)])
+                    # Random action (as long as it's not toward nearest red)
+                    #blob.action(random.choice(actions))
                     # step away from nearest red
-                    blob.action(argmax_dist_b2r[np.argmin(max_dist_b2r)])
-                
+                    blob.action(actions_away_red[np.argmin(dists_away_red)])
+                    
             
             # ------ End Navigation Scenario ------
                 
@@ -578,7 +592,7 @@ def main():
                 quit()
         t += 2  # move the needle so that blobs go in circles
         draw_environment([blue_blobs,red_blobs,green_blobs], t)
-        clock.tick(100) # 60fps cap
+        clock.tick(200) # 60fps cap
         #print(red_blob.x, red_blob.y)
 if __name__ == '__main__':
     main()
