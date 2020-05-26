@@ -9,7 +9,6 @@ Need to do:
     - Ensure update stats every is set up properly.
     - Get stats recording set up properly (maybe set it up to save them or plots somewhere upon completion?).
     - Set it up to save the model at completion.
-    Silly Sally sells seashells down by the seashore.
 """
 
 import gym
@@ -34,10 +33,10 @@ class Model(nn.Module):
 
     # function from super that must be modified for each subclass
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+        out = F.relu(self.fc1(out))
+        out = F.relu(self.fc2(out))
+        out = self.fc3(out)
+        return out
 
 # taken from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 Transition = namedtuple('Transition',
@@ -64,9 +63,13 @@ class ReplayMemory(object):
     def __len__(self):
         return len(self.memory)
 
+
+
 env = gym.make('MountainCar-v0')
+
 model = Model()
-tgt_model = model
+tgt_model = Model()
+tgt_model.load_state_dict(model.state_dict())
 LEARNING_RATE = 0.001
 GAMMA = 0.99 # discount factor
 REPLAY_MEMORY = 50_000
@@ -74,18 +77,21 @@ optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=GAMMA)
 memory = ReplayMemory(REPLAY_MEMORY)
 
-EPISODES = 20_000
+EPISODES = 5_000
 EPS_START = 0.99
 EPS_END = 0.05
 # function to decay epsilon from EPS_START to EPS_END linearly over EPISODES horizon
 epsilon = lambda episode : (EPISODES - episode) / EPISODES * (EPS_START - EPS_END) + EPS_END
+
 np2torch = lambda x: torch.Tensor(x)
 torch2np = lambda x: x.numpy()
+
 UPDATE_TARGET_EVERY = 5
 SHOW_EVERY = 1
 BATCH_SIZE = 128
 SHOW = False
 RUN_AVG_LEN = 100 # length off previous episodes over which running average is computed
+
 max_pos_ls = []
 ep_loss_ls = []
 ep_reward_ls = []
@@ -133,16 +139,16 @@ def train(episode, memory, model, tgt_model):
     # compute loss & update model
     loss_fn = nn.MSELoss()
     loss = loss_fn(model(np2torch(X)), Qs)
-    #model.zero_grad()
+    # PyTorch accumulates gradients by default, so they need to be reset in each pass
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
     # update tgt model if it's time (maybe every 5 episodes?)
     if episode % UPDATE_TARGET_EVERY == 0:
-        tgt_model = model
+        tgt_model.load_state_dict(model.state_dict())
 
-    return model, tgt_model, loss
+    return model, tgt_model, float(loss)
 
 
 
@@ -266,12 +272,12 @@ plt.savefig(          'ep_reward_run_avg.png')
 
 
 # save model
-PATH = "C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/model_save_test.pt"
-torch.save(model.state_dict(), PATH)
+dirPATH = "/home/uxv_swarm/github/belgian_quad/MountainCar_Scripts/"
+torch.save(model.state_dict(), f"{dirPATH}model_save_test.pt")
 
-np.savetxt("C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/max_pos_ls.csv",        max_pos_ls,        delimiter=",")
-np.savetxt("C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/ep_loss_ls.csv",        ep_loss_ls,        delimiter=",")
-np.savetxt("C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/ep_reward_ls.csv",      ep_reward_ls,      delimiter=",")
-np.savetxt("C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/max_pos_run_avg.csv",   max_pos_run_avg,   delimiter=",")
-np.savetxt("C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/ep_loss_run_avg.csv",   ep_loss_run_avg,   delimiter=",")
-np.savetxt("C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/ep_reward_run_avg.csv", ep_reward_run_avg, delimiter=",")
+np.savetxt(f"{dirPATH}max_pos_ls.csv",        max_pos_ls,        delimiter=",")
+np.savetxt(f"{dirPATH}ep_loss_ls.csv",        ep_loss_ls,        delimiter=",")
+np.savetxt(f"{dirPATH}ep_reward_ls.csv",      ep_reward_ls,      delimiter=",")
+np.savetxt(f"{dirPATH}max_pos_run_avg.csv",   max_pos_run_avg,   delimiter=",")
+np.savetxt(f"{dirPATH}ep_loss_run_avg.csv",   ep_loss_run_avg,   delimiter=",")
+np.savetxt(f"{dirPATH}ep_reward_run_avg.csv", ep_reward_run_avg, delimiter=",")
