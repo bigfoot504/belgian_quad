@@ -141,6 +141,7 @@ def train(episode, memory, model, tgt_model):
 
     # compute loss & update model
     loss_fn = nn.MSELoss()
+    #print(np2torch(X).shape); print(Qs.shape) # temp
     loss = loss_fn(model(np2torch(X)), Qs)
     # PyTorch accumulates gradients by default, so they need to be reset in each pass
     optimizer.zero_grad()
@@ -276,6 +277,7 @@ plt.savefig(          'ep_reward_run_avg.png')
 
 # save model
 #dirPATH = "C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/"
+#dirPATH = "/home/uxv_swarm/github/belgian_quad/MountainCar_Scripts/"
 dirPATH = "/home/uxv_swarm/github/belgian_quad/MountainCar_Scripts/"
 torch.save(model.state_dict(), f"{dirPATH}model_save_test.pt")
 
