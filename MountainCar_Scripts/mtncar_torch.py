@@ -29,13 +29,15 @@ class Model(nn.Module):
         super(Model, self).__init__()
         self.fc1 = nn.Linear(2, 32)
         self.fc2 = nn.Linear(32, 32)
-        self.fc3 = nn.Linear(32, 3)
+        self.fc3 = nn.Linear(32, 32)
+        self.fc4 = nn.Linear(32, 3)
 
     # function from super that must be modified for each subclass
     def forward(self, x):
-        out = F.relu(self.fc1(out))
+        out = F.relu(self.fc1(x))
         out = F.relu(self.fc2(out))
-        out = self.fc3(out)
+        out = F.relu(self.fc3(out))
+        out = self.fc4(out)
         return out
 
 # taken from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
@@ -85,6 +87,7 @@ epsilon = lambda episode : (EPISODES - episode) / EPISODES * (EPS_START - EPS_EN
 
 np2torch = lambda x: torch.Tensor(x)
 torch2np = lambda x: x.numpy()
+# Note: also can go torch to float using vname.item()
 
 UPDATE_TARGET_EVERY = 5
 SHOW_EVERY = 1
@@ -185,7 +188,7 @@ for episode in tqdm(range(EPISODES)):
         # Take step
         new_state, reward, doneEp, _ = env.step(action)
 
-        # Store the transition in memory
+        # Push transition to memory
         memory.push((state, action, reward, new_state, doneEp))
 
         '''
@@ -203,7 +206,7 @@ for episode in tqdm(range(EPISODES)):
         state = new_state
         if state[0] > max_pos:
             max_pos = state[0]
-        ep_loss += loss.item()
+        ep_loss += loss
         ep_reward += reward
 
         # if episode is done
@@ -272,6 +275,7 @@ plt.savefig(          'ep_reward_run_avg.png')
 
 
 # save model
+#dirPATH = "C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/"
 dirPATH = "/home/uxv_swarm/github/belgian_quad/MountainCar_Scripts/"
 torch.save(model.state_dict(), f"{dirPATH}model_save_test.pt")
 
