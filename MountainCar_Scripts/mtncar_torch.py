@@ -3,6 +3,8 @@
 Created on Fri Apr 10 15:04:08 2020
 @author: locker
 Me building a MountainCar solver from scratch using PyTorch.
+Uses a combination of practices from sentdex's RL tutorials at pythonprogramming.net
+and the RL tutorial on pytorch.org.
 
 Need to do:
     - Get train function set up properly (& global vs local state, action, reward, new_state variables).
@@ -24,6 +26,7 @@ from collections import namedtuple
 import time
 from matplotlib import pyplot as plt
 
+# Define model class
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
@@ -40,10 +43,12 @@ class Model(nn.Module):
         out = self.fc4(out)
         return out
 
+# This special tuple is part of a different optional method
 # taken from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 Transition = namedtuple('Transition',
                        ('state', 'action', 'reward', 'new_state', 'done'))
 
+# Replay memory object
 # taken from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 class ReplayMemory(object):
 
@@ -69,31 +74,34 @@ class ReplayMemory(object):
 
 env = gym.make('MountainCar-v0')
 
-model = Model()
-tgt_model = Model()
-tgt_model.load_state_dict(model.state_dict())
 LEARNING_RATE = 0.001
 GAMMA = 0.99 # discount factor
 REPLAY_MEMORY = 50_000
+EPISODES = 5_000
+EPS_START = 0.99
+EPS_END = 0.05
+UPDATE_TARGET_EVERY = 5
+SHOW_EVERY = 1
+BATCH_SIZE = 128
+SHOW = False
+RUN_AVG_LEN = 100 # length off previous episodes over which running average is computed
+
+# Initialize model and tgt_model networks
+model = Model()
+tgt_model = Model()
+# Copy weights from main model onto tgt_model
+tgt_model.load_state_dict(model.state_dict())
+tgt_model.eval()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=GAMMA)
 memory = ReplayMemory(REPLAY_MEMORY)
 
-EPISODES = 5_000
-EPS_START = 0.99
-EPS_END = 0.05
 # function to decay epsilon from EPS_START to EPS_END linearly over EPISODES horizon
 epsilon = lambda episode : (EPISODES - episode) / EPISODES * (EPS_START - EPS_END) + EPS_END
 
 np2torch = lambda x: torch.Tensor(x)
 torch2np = lambda x: x.numpy()
 # Note: also can go torch to float using vname.item()
-
-UPDATE_TARGET_EVERY = 5
-SHOW_EVERY = 1
-BATCH_SIZE = 128
-SHOW = False
-RUN_AVG_LEN = 100 # length off previous episodes over which running average is computed
 
 max_pos_ls = []
 ep_loss_ls = []
@@ -117,7 +125,7 @@ def train(episode, memory, model, tgt_model):
     # initialize data to train on
 
     X = [] # state pairs from the game
-    y = [] # labels/targets
+    y = torch.zeros([BATCH_SIZE, env.action_space.n]) # labels/targets
 
     # get new Q's for each in minibatch
     for index, (state, action, reward, new_state, done) in enumerate(minibatch):
@@ -136,13 +144,13 @@ def train(episode, memory, model, tgt_model):
         Qs[action] = new_Q
 
         # instead of passing image, pass state tuple
-        X.append(state)
-        y.append(Qs)
+        X.append(state) # doesn't X end up being same as states_list?
+        y[index,:] = Qs # y is unique though and we will need that
 
     # compute loss & update model
     loss_fn = nn.MSELoss()
     #print(np2torch(X).shape); print(Qs.shape) # temp
-    loss = loss_fn(model(np2torch(X)), Qs)
+    loss = loss_fn(model(np2torch(X)), y)
     # PyTorch accumulates gradients by default, so they need to be reset in each pass
     optimizer.zero_grad()
     loss.backward()
@@ -158,7 +166,6 @@ def train(episode, memory, model, tgt_model):
 
 # Main Loop
 for episode in tqdm(range(EPISODES)):
-    #print(episode)
 
     state = env.reset() # reset current state
     actions = []
@@ -185,7 +192,7 @@ for episode in tqdm(range(EPISODES)):
             # use network to get an educated action
             maxQ, action = torch.max(Qs, -1)
             action = action.item()
-
+        
         # Take step
         new_state, reward, doneEp, _ = env.step(action)
 
@@ -278,7 +285,7 @@ plt.savefig(          'ep_reward_run_avg.png')
 # save model
 #dirPATH = "C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/"
 #dirPATH = "/home/uxv_swarm/github/belgian_quad/MountainCar_Scripts/"
-dirPATH = "/home/uxv_swarm/github/belgian_quad/MountainCar_Scripts/"
+dirPATH = "/home/labuser/github/belgian_quad/MountainCar_Scripts/"
 torch.save(model.state_dict(), f"{dirPATH}model_save_test.pt")
 
 np.savetxt(f"{dirPATH}max_pos_ls.csv",        max_pos_ls,        delimiter=",")
