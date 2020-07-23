@@ -6,11 +6,10 @@ Me building a MountainCar solver from scratch using PyTorch.
 Uses a combination of practices from sentdex's RL tutorials at pythonprogramming.net
 and the RL tutorial on pytorch.org.
 
-Need to do:
-    - Get train function set up properly (& global vs local state, action, reward, new_state variables).
-    - Ensure update stats every is set up properly.
-    - Get stats recording set up properly (maybe set it up to save them or plots somewhere upon completion?).
-    - Set it up to save the model at completion.
+Try out the basic version with just one network. As opposed to mtncar_torch.py,
+which uses a main model and a target model. The two network model is taking a
+while to train and getting some odd results. Let's simplify the model here and
+see if we get anythhing useful.
 """
 
 import gym
@@ -33,16 +32,15 @@ NUM_ACTIONS = env.action_space.n
 LEARNING_RATE = 0.001
 GAMMA = 0.99 # discount factor
 REPLAY_MEMORY = 50_000
-EPISODES = 20_000
+EPISODES = 5_000
 EPS_START = 0.99
 EPS_END = 0.05
-UPDATE_TARGET_EVERY = 5
 SHOW_EVERY = 1
 SHOW = False
 BATCH_SIZE = 128
 RUN_AVG_LEN = 100 # length off previous episodes over which running average is computed
 LOAD_PREV_MODEL = False # to load an old model to demo or build upon rather than training a new one from scratch
-dirPATH = "/home/labuser/github/belgian_quad/MountainCar_Scripts/mtncar_torch_results/"
+dirPATH = "/home/labuser/github/belgian_quad/MountainCar_Scripts/mtncar_basic_dqn_torch_results/"
 
 # Define model class
 class Model(nn.Module):
@@ -90,17 +88,13 @@ class ReplayMemory(object):
 
 
 
-# Initialize model and tgt_model networks
+# Initialize model network
 model = Model()
-tgt_model = Model()
 # option to load old/previously-trained model
 if LOAD_PREV_MODEL == True:
-    model.load_state_dict(torch.load(f"{dirPATH}model_save_test.pt"))
-# Copy weights from main model onto tgt_model
-tgt_model.load_state_dict(model.state_dict())
-tgt_model.eval()
+    model.load_state_dict(torch.load(f"{dirPATH}model_save_test_basic2.pt"))
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-#scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=GAMMA)
+# scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=GAMMA)
 memory = ReplayMemory(REPLAY_MEMORY)
 
 # function to decay epsilon from EPS_START to EPS_END linearly over EPISODES horizon
@@ -114,10 +108,10 @@ max_pos_ls = []
 ep_loss_ls = []
 ep_reward_ls = []
 
-def train(episode, memory, model, tgt_model):
+def train(episode, memory, model):
     # train
     if len(memory) < BATCH_SIZE:
-        return model, tgt_model, np2torch([0])
+        return model, np2torch([0])
 
     # get random sample from replay memory
     minibatch = memory.sample(BATCH_SIZE)
@@ -128,11 +122,11 @@ def train(episode, memory, model, tgt_model):
     # Get corresponding new states from minibatch
     new_states_list = np.array([transition[3] for transition in minibatch])
     # Get NN ouputs for each of minibatch new states states from current target model
-    future_Qs_list = tgt_model(np2torch(new_states_list))
+    future_Qs_list = model(np2torch(new_states_list))
     # initialize data to train on
 
     X = [] # state pairs from the game
-    y = torch.zeros([BATCH_SIZE, env.action_space.n]) # labels/targets
+    y = torch.zeros([BATCH_SIZE, NUM_ACTIONS]) # labels/targets
 
     # get new Q's for each in minibatch
     for index, (state, action, reward, new_state, done) in enumerate(minibatch):
@@ -163,11 +157,7 @@ def train(episode, memory, model, tgt_model):
     loss.backward()
     optimizer.step()
 
-    # update tgt model if it's time (maybe every 5 episodes?)
-    if episode % UPDATE_TARGET_EVERY == 0:
-        tgt_model.load_state_dict(model.state_dict())
-
-    return model, tgt_model, float(loss)
+    return model, float(loss)
 
 
 
@@ -213,7 +203,7 @@ for episode in tqdm(range(EPISODES)):
         max_future_Q = reward + GAMMA * torch.max(tgt_Qs) # max future Q is reward + discounted tgt Q
         '''
 
-        model, tgt_model, loss = train(episode, memory, model, tgt_model)
+        model, loss = train(episode, memory, model)
 
         # if episode % SHOW_EVERY == 0 and SHOW == True:
         #     env.close()
@@ -255,7 +245,7 @@ plt.xlabel('Episode Num')
 plt.ylabel('Loss')
 plt.title('MSE_Loss by End of Episode') # what is loss even computing again?***
 plt.show()
-plt.savefig(          'ep_loss_ls2.png')
+plt.savefig(          'ep_loss_ls_basic2.png')
 
 plt.plot(np.arange(len(ep_reward_ls)),
          np.array(     ep_reward_ls))
@@ -263,7 +253,7 @@ plt.xlabel('Episode Num')
 plt.ylabel('Reward')
 plt.title('Total Reward by End of Episode') # NOT the same as max future Q
 plt.show()
-plt.savefig(          'ep_reward_ls2.png')
+plt.savefig(          'ep_reward_ls_basic2.png')
 
 plt.plot(np.arange(len(max_pos_run_avg)),
          np.array(     max_pos_run_avg))
@@ -271,7 +261,7 @@ plt.xlabel('Episode Num')
 plt.ylabel('Max Position Avg Last 100 Episodes')
 plt.title('Max Position Running Average Last 100 Episodes')
 plt.show()
-plt.savefig(          'max_pos_run_avg2.png')
+plt.savefig(          'max_pos_run_avg_basic2.png')
 
 plt.plot(np.arange(len(ep_loss_run_avg)),
          np.array(     ep_loss_run_avg))
@@ -279,7 +269,7 @@ plt.xlabel('Episode Num')
 plt.ylabel('Loss Avg Last 100 Episodes')
 plt.title('MSE_Loss Running Average Last 100 Episodes')
 plt.show()
-plt.savefig(          'ep_loss_run_avg2.png')
+plt.savefig(          'ep_loss_run_avg_basic2.png')
 
 plt.plot(np.arange(len(ep_reward_run_avg)),
          np.array(     ep_reward_run_avg))
@@ -287,18 +277,18 @@ plt.xlabel('Episode Num')
 plt.ylabel('Reward Avg Last 100 Episodes')
 plt.title('Episode Reward Running Average Last 100 Episodes')
 plt.show()
-plt.savefig(          'ep_reward_run_avg2.png')
+plt.savefig(          'ep_reward_run_avg_basic2.png')
 
 
 # save model
 #dirPATH = "C:/Users/locker/Documents/Python_Projects/MountainCar_Scripts/"
 #dirPATH = "/home/uxv_swarm/github/belgian_quad/MountainCar_Scripts/"
-dirPATH = "/home/labuser/github/belgian_quad/MountainCar_Scripts/mtncar_torch_results/"
-torch.save(model.state_dict(), f"{dirPATH}model_save_test2.pt")
+dirPATH = "/home/labuser/github/belgian_quad/MountainCar_Scripts/mtncar_basic_dqn_torch_results/"
+torch.save(model.state_dict(), f"{dirPATH}model_save_test_basic.pt")
 
-np.savetxt(f"{dirPATH}max_pos_ls2.csv",        max_pos_ls,        delimiter=",")
-np.savetxt(f"{dirPATH}ep_loss_ls2.csv",        ep_loss_ls,        delimiter=",")
-np.savetxt(f"{dirPATH}ep_reward_ls2.csv",      ep_reward_ls,      delimiter=",")
-np.savetxt(f"{dirPATH}max_pos_run_avg2.csv",   max_pos_run_avg,   delimiter=",")
-np.savetxt(f"{dirPATH}ep_loss_run_avg2.csv",   ep_loss_run_avg,   delimiter=",")
-np.savetxt(f"{dirPATH}ep_reward_run_avg2.csv", ep_reward_run_avg, delimiter=",")
+np.savetxt(f"{dirPATH}max_pos_ls_basic2.csv",        max_pos_ls,        delimiter=",")
+np.savetxt(f"{dirPATH}ep_loss_ls_basic2.csv",        ep_loss_ls,        delimiter=",")
+np.savetxt(f"{dirPATH}ep_reward_ls_basic2.csv",      ep_reward_ls,      delimiter=",")
+np.savetxt(f"{dirPATH}max_pos_run_avg_basic2.csv",   max_pos_run_avg,   delimiter=",")
+np.savetxt(f"{dirPATH}ep_loss_run_avg_basic2.csv",   ep_loss_run_avg,   delimiter=",")
+np.savetxt(f"{dirPATH}ep_reward_run_avg_basic2.csv", ep_reward_run_avg, delimiter=",")
