@@ -111,24 +111,36 @@ torch2np = lambda x: x.numpy()
 # Note: also can go torch to float using vname.item()
 
 def train(episode, memory, model, tgt_model):
+    t = time.time()
+    tflags = np.zeros(15)
+
     # train
     if len(memory) < BATCH_SIZE:
-        return model, tgt_model, np2torch([0])
+        return model, tgt_model, 0, tflags#np2torch([0])
+
+    tflags[0] = time.time()-t; t = time.time()
 
     # get random sample from replay memory
     minibatch = memory.sample(BATCH_SIZE)
+    tflags[1] = time.time()-t; t = time.time()
     # load in states from minibatch
     states_list = np.array([transition[0] for transition in minibatch])
+    tflags[2] = time.time()-t; t = time.time()
     # Get NN ouputs for each of minibatch current states from current main model
     Qs_list = model(np2torch(states_list))
+    tflags[3] = time.time()-t; t = time.time()
     # Get corresponding new states from minibatch
     new_states_list = np.array([transition[3] for transition in minibatch])
+    tflags[4] = time.time()-t; t = time.time()
     # Get NN ouputs for each of minibatch new states states from current target model
     future_Qs_list = tgt_model(np2torch(new_states_list))
+    tflags[5] = time.time()-t; t = time.time()
     # initialize data to train on
 
     X = [] # state pairs from the game
+    tflags[6] = time.time()-t; t = time.time()
     y = torch.zeros([BATCH_SIZE, env.action_space.n]) # labels/targets
+    tflags[7] = time.time()-t; t = time.time()
 
     # get new Q's for each in minibatch
     for index, (state, action, reward, new_state, done) in enumerate(minibatch):
@@ -149,21 +161,28 @@ def train(episode, memory, model, tgt_model):
         # instead of passing image, pass state tuple
         X.append(state) # doesn't X end up being same as states_list?
         y[index,:] = Qs # y is unique though and we will need that
+    tflags[8] = time.time()-t; t = time.time()
 
     # compute loss & update model
     loss_fn = nn.MSELoss()
+    tflags[9] = time.time()-t; t = time.time()
     #print(np2torch(X).shape); print(Qs.shape) # temp
     loss = loss_fn(model(np2torch(X)), y)
+    tflags[10] = time.time()-t; t = time.time()
     # PyTorch accumulates gradients by default, so they need to be reset in each pass
     optimizer.zero_grad()
+    tflags[11] = time.time()-t; t = time.time()
     loss.backward()
+    tflags[12] = time.time()-t; t = time.time()
     optimizer.step()
+    tflags[13] = time.time()-t; t = time.time()
 
     # update tgt model if it's time (maybe every 5 episodes?)
     if episode % UPDATE_TARGET_EVERY == 0:
         tgt_model.load_state_dict(model.state_dict())
-
-    return model, tgt_model, float(loss)
+    tflags[14] = time.time()-t; t = time.time()
+    
+    return model, tgt_model, float(loss), tflags
 
 
 
@@ -173,6 +192,7 @@ ep_reward_ls = []
 
 # Main Loop
 for episode in tqdm(range(EPISODES)):
+    input(f'Press ENTER to start episode = {episode}')
 
     state = env.reset() # reset current state
     actions = []
@@ -180,15 +200,31 @@ for episode in tqdm(range(EPISODES)):
     max_pos = -0.4
     ep_loss = 0
     ep_reward = 0
-    max_pos_run_avg = []
-    ep_loss_run_avg = []
-    ep_reward_run_avg = []
+    # max_pos_run_avg = []
+    # ep_loss_run_avg = []
+    # ep_reward_run_avg = []
 
+    t = time.time()
+    tflag0 = []
+    tflag1 = []
+    tflag2 = []
+    tflag3 = []
+    tflag4 = []
+    tflag5 = []
+    tflag6 = []
+    tflag7 = []
+    tflag8 = []
+    tflag9 = []
+    tflag10 = []
+    tflag11 = []
+    tflag12 = []
+    tflag13 = []
+    tflag14 = []
     while not doneEp:
         if episode % SHOW_EVERY == 0 and SHOW == True:
             env.close()
             env.render()
-
+        
         # pass current torch state through NN
         Qs = model(np2torch(state))
 
@@ -213,7 +249,22 @@ for episode in tqdm(range(EPISODES)):
         max_future_Q = reward + GAMMA * torch.max(tgt_Qs) # max future Q is reward + discounted tgt Q
         '''
 
-        model, tgt_model, loss = train(episode, memory, model, tgt_model)
+        model, tgt_model, loss, tflags = train(episode, memory, model, tgt_model) # tflags are temporary for debugging time
+        tflag0.append(tflags[0])
+        tflag1.append(tflags[1])
+        tflag2.append(tflags[2])
+        tflag3.append(tflags[3])
+        tflag4.append(tflags[4])
+        tflag5.append(tflags[5])
+        tflag6.append(tflags[6])
+        tflag7.append(tflags[7])
+        tflag8.append(tflags[8])
+        tflag9.append(tflags[9])
+        tflag10.append(tflags[10])
+        tflag11.append(tflags[11])
+        tflag12.append(tflags[12])
+        tflag13.append(tflags[13])
+        tflag14.append(tflags[14])
 
         # if episode % SHOW_EVERY == 0 and SHOW == True:
         #     env.close()
@@ -224,20 +275,39 @@ for episode in tqdm(range(EPISODES)):
             max_pos = state[0]
         ep_loss += loss
         ep_reward += reward
-
+        
         # if episode is done
         # if doneEp:
         #     scheduler.step()
+
+    tot_time = [sum(tflag0), sum(tflag1), sum(tflag2), sum(tflag3), sum(tflag4), sum(tflag5), sum(tflag6), sum(tflag7),
+                sum(tflag8), sum(tflag9), sum(tflag10), sum(tflag11), sum(tflag12), sum(tflag13), sum(tflag14)] 
+    print(f'\nflag 0: sum = {tot_time[0]:.8f}, mean = {np.mean(tflag0):.8f}, cv = {np.std(tflag0)/np.mean(tflag0):.8f}, prop_time = {tot_time[0]/sum(tot_time):.4f}')
+    print(f'flag 1: sum = {tot_time[1]:.8f}, mean = {np.mean(tflag1):.8f}, cv = {np.std(tflag1)/np.mean(tflag1):.8f}, prop_time = {tot_time[1]/sum(tot_time):.4f}')
+    print(f'flag 2: sum = {tot_time[2]:.8f}, mean = {np.mean(tflag2):.8f}, cv = {np.std(tflag2)/np.mean(tflag2):.8f}, prop_time = {tot_time[2]/sum(tot_time):.4f}')
+    print(f'flag 3: sum = {tot_time[3]:.8f}, mean = {np.mean(tflag3):.8f}, cv = {np.std(tflag3)/np.mean(tflag3):.8f}, prop_time = {tot_time[3]/sum(tot_time):.4f}')
+    print(f'flag 4: sum = {tot_time[4]:.8f}, mean = {np.mean(tflag4):.8f}, cv = {np.std(tflag4)/np.mean(tflag4):.8f}, prop_time = {tot_time[4]/sum(tot_time):.4f}')
+    print(f'flag 5: sum = {tot_time[5]:.8f}, mean = {np.mean(tflag5):.8f}, cv = {np.std(tflag5)/np.mean(tflag5):.8f}, prop_time = {tot_time[5]/sum(tot_time):.4f}')
+    print(f'flag 6: sum = {tot_time[6]:.8f}, mean = {np.mean(tflag6):.8f}, cv = {np.std(tflag6)/np.mean(tflag6):.8f}, prop_time = {tot_time[6]/sum(tot_time):.4f}')
+    print(f'flag 7: sum = {tot_time[7]:.8f}, mean = {np.mean(tflag7):.8f}, cv = {np.std(tflag7)/np.mean(tflag7):.8f}, prop_time = {tot_time[7]/sum(tot_time):.4f}')
+    print(f'flag 8: sum = {tot_time[8]:.8f}, mean = {np.mean(tflag8):.8f}, cv = {np.std(tflag8)/np.mean(tflag8):.8f}, prop_time = {tot_time[8]/sum(tot_time):.4f}')
+    print(f'flag 9: sum = {tot_time[9]:.8f}, mean = {np.mean(tflag9):.8f}, cv = {np.std(tflag9)/np.mean(tflag9):.8f}, prop_time = {tot_time[9]/sum(tot_time):.4f}')
+    print(f'flag 10: sum = {tot_time[10]:.8f}, mean = {np.mean(tflag10):.8f}, cv = {np.std(tflag10)/np.mean(tflag10):.8f}, prop_time = {tot_time[10]/sum(tot_time):.4f}')
+    print(f'flag 11: sum = {tot_time[11]:.8f}, mean = {np.mean(tflag11):.8f}, cv = {np.std(tflag11)/np.mean(tflag11):.8f}, prop_time = {tot_time[11]/sum(tot_time):.4f}')
+    print(f'flag 12: sum = {tot_time[12]:.8f}, mean = {np.mean(tflag12):.8f}, cv = {np.std(tflag12)/np.mean(tflag12):.8f}, prop_time = {tot_time[12]/sum(tot_time):.4f}')
+    print(f'flag 13: sum = {tot_time[13]:.8f}, mean = {np.mean(tflag13):.8f}, cv = {np.std(tflag13)/np.mean(tflag13):.8f}, prop_time = {tot_time[13]/sum(tot_time):.4f}')
+    print(f'flag 14: sum = {tot_time[14]:.8f}, mean = {np.mean(tflag14):.8f}, cv = {np.std(tflag14)/np.mean(tflag14):.8f}, prop_time = {tot_time[14]/sum(tot_time):.4f}')
+    [print(sum(tot_time[0:i+1])/sum(tot_time)) for i in range(15)]
 
     # Update Episode Stats
     max_pos_ls.append(max_pos)
     ep_loss_ls.append(ep_loss)
     ep_reward_ls.append(ep_reward)
     # Update Running Averages
-    if episode >= RUN_AVG_LEN:
-        max_pos_run_avg.append(  max_pos_ls[  episode-RUN_AVG_LEN+1 : episode])
-        ep_loss_run_avg.append(  ep_loss_ls[  episode-RUN_AVG_LEN+1 : episode])
-        ep_reward_run_avg.append(ep_reward_ls[episode-RUN_AVG_LEN+1 : episode])
+    # if episode >= RUN_AVG_LEN:
+    #     max_pos_run_avg.append(  max_pos_ls[  episode-RUN_AVG_LEN+1 : episode])
+    #     ep_loss_run_avg.append(  ep_loss_ls[  episode-RUN_AVG_LEN+1 : episode])
+    #     ep_reward_run_avg.append(ep_reward_ls[episode-RUN_AVG_LEN+1 : episode])
 
 
 
@@ -265,29 +335,29 @@ plt.title('Total Reward by End of Episode') # NOT the same as max future Q
 plt.show()
 plt.savefig(          'ep_reward_ls2.png')
 
-plt.plot(np.arange(len(max_pos_run_avg)),
-         np.array(     max_pos_run_avg))
-plt.xlabel('Episode Num')
-plt.ylabel('Max Position Avg Last 100 Episodes')
-plt.title('Max Position Running Average Last 100 Episodes')
-plt.show()
-plt.savefig(          'max_pos_run_avg2.png')
-
-plt.plot(np.arange(len(ep_loss_run_avg)),
-         np.array(     ep_loss_run_avg))
-plt.xlabel('Episode Num')
-plt.ylabel('Loss Avg Last 100 Episodes')
-plt.title('MSE_Loss Running Average Last 100 Episodes')
-plt.show()
-plt.savefig(          'ep_loss_run_avg2.png')
-
-plt.plot(np.arange(len(ep_reward_run_avg)),
-         np.array(     ep_reward_run_avg))
-plt.xlabel('Episode Num')
-plt.ylabel('Reward Avg Last 100 Episodes')
-plt.title('Episode Reward Running Average Last 100 Episodes')
-plt.show()
-plt.savefig(          'ep_reward_run_avg2.png')
+# plt.plot(np.arange(len(max_pos_run_avg)),
+#          np.array(     max_pos_run_avg))
+# plt.xlabel('Episode Num')
+# plt.ylabel('Max Position Avg Last 100 Episodes')
+# plt.title('Max Position Running Average Last 100 Episodes')
+# plt.show()
+# plt.savefig(          'max_pos_run_avg2.png')
+#
+# plt.plot(np.arange(len(ep_loss_run_avg)),
+#          np.array(     ep_loss_run_avg))
+# plt.xlabel('Episode Num')
+# plt.ylabel('Loss Avg Last 100 Episodes')
+# plt.title('MSE_Loss Running Average Last 100 Episodes')
+# plt.show()
+# plt.savefig(          'ep_loss_run_avg2.png')
+#
+# plt.plot(np.arange(len(ep_reward_run_avg)),
+#          np.array(     ep_reward_run_avg))
+# plt.xlabel('Episode Num')
+# plt.ylabel('Reward Avg Last 100 Episodes')
+# plt.title('Episode Reward Running Average Last 100 Episodes')
+# plt.show()
+# plt.savefig(          'ep_reward_run_avg2.png')
 
 
 # save model
@@ -299,6 +369,6 @@ torch.save(model.state_dict(), f"{dirPATH}model_save_test2.pt")
 np.savetxt(f"{dirPATH}max_pos_ls2.csv",        max_pos_ls,        delimiter=",")
 np.savetxt(f"{dirPATH}ep_loss_ls2.csv",        ep_loss_ls,        delimiter=",")
 np.savetxt(f"{dirPATH}ep_reward_ls2.csv",      ep_reward_ls,      delimiter=",")
-np.savetxt(f"{dirPATH}max_pos_run_avg2.csv",   max_pos_run_avg,   delimiter=",")
-np.savetxt(f"{dirPATH}ep_loss_run_avg2.csv",   ep_loss_run_avg,   delimiter=",")
-np.savetxt(f"{dirPATH}ep_reward_run_avg2.csv", ep_reward_run_avg, delimiter=",")
+# np.savetxt(f"{dirPATH}max_pos_run_avg2.csv",   max_pos_run_avg,   delimiter=",")
+# np.savetxt(f"{dirPATH}ep_loss_run_avg2.csv",   ep_loss_run_avg,   delimiter=",")
+# np.savetxt(f"{dirPATH}ep_reward_run_avg2.csv", ep_reward_run_avg, delimiter=",")
