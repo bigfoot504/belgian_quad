@@ -110,10 +110,6 @@ np2torch = lambda x: torch.Tensor(x)
 torch2np = lambda x: x.numpy()
 # Note: also can go torch to float using vname.item()
 
-max_pos_ls = []
-ep_loss_ls = []
-ep_reward_ls = []
-
 def train(episode, memory, model, tgt_model):
     # train
     if len(memory) < BATCH_SIZE:
@@ -171,6 +167,10 @@ def train(episode, memory, model, tgt_model):
 
 
 
+max_pos_ls = []
+ep_loss_ls = []
+ep_reward_ls = []
+
 # Main Loop
 for episode in tqdm(range(EPISODES)):
 
@@ -200,7 +200,7 @@ for episode in tqdm(range(EPISODES)):
             # use network to get an educated action
             maxQ, action = torch.max(Qs, -1)
             action = action.item()
-        
+
         # Take step
         new_state, reward, doneEp, _ = env.step(action)
 
