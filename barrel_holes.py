@@ -134,9 +134,11 @@ while True:
     if (hole_coords == hole_coords_old).all() or abs(soln.fun - funval_old) < 1e1:
         break
 
-
-
-
+print(hole_coords)
+dir_dis_2_holes = dirdis_from_ctr(hole_coords)
+print(dir_dis_2_holes)
+print(np.mean(dir_dis_2_holes[:,1]))
+print(np.pi*np.mean(dir_dis_2_holes[:,1])**2, np.pi*13**2, np.pi*np.mean(dir_dis_2_holes[:,1])**2 / (np.pi*13**2))
 
 
 
